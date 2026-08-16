@@ -563,7 +563,45 @@ public class PreGameScreen extends JPanel implements ActionListener
 						}
 						else
 						{
-							if(this.levelFieldAddPC.getText().compareToIgnoreCase("Over 9000") == 0)
+							String levelText = this.levelFieldAddPC.getText().trim();
+
+							// Typing "ai" in the level field makes a bot that asks a language
+							// model for its shot. "ai:mistral" picks the model, and
+							// "ai:mistral:80" also sets the level of the classic AI that takes
+							// over when the model cannot be reached.
+							if(levelText.equalsIgnoreCase("ai") || levelText.toLowerCase().startsWith("ai:"))
+							{
+								String model;
+								level = Constants.COMPUTER_LEVEL_MEAN_VALUE;
+
+								String[] parts = levelText.split(":");
+
+								if(parts.length > 1 && parts[1].trim().length() > 0)
+								{
+									model = parts[1].trim();
+								}
+								else
+								{
+									model = PollinationsClient.DEFAULT_MODEL;
+								}
+
+								if(parts.length > 2)
+								{
+									try
+									{
+										level = Integer.parseInt(parts[2].trim());
+									}
+									catch(NumberFormatException e)
+									{
+										// keep the default fallback level
+									}
+								}
+
+								graphwar.getGameData().addPC(name, level, model);
+								this.showAddPC(false);
+								this.repaint();
+							}
+							else if(this.levelFieldAddPC.getText().compareToIgnoreCase("Over 9000") == 0)
 							{
 								level = 9001;
 								

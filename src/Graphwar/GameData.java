@@ -37,7 +37,23 @@ public class GameData implements Runnable
 	private ServerConnection serverConnection;
 	
 	private List<Player> players;
-	private Queue<Integer> nextPCs;	
+	private Queue<PCSpec> nextPCs;
+
+	/** What kind of bot the next locally added player should be. */
+	private static class PCSpec
+	{
+		private final int level;
+		private final String model;
+		private final BotPersonality personality;
+
+		private PCSpec(int level, String model, BotPersonality personality)
+		{
+			this.level = level;
+			this.model = model;
+			this.personality = personality;
+		}
+	}
+
 	
 	private Obstacle obstacle;
 	
@@ -75,7 +91,7 @@ public class GameData implements Runnable
 		serverConnection = null;
 		
 		players = new ArrayList<Player>();
-		nextPCs = new LinkedList<Integer>();
+		nextPCs = new LinkedList<PCSpec>();
 		
 		obstacle = null;
 		
@@ -364,10 +380,30 @@ public class GameData implements Runnable
 	
 	public void addPC(String name, int level)
 	{
+		addPC(name, level, null);
+	}
+
+	/**
+	 * Queues a computer player. When model is not null the bot is driven by a
+	 * language model through Pollinations, with the classic evolutionary AI of
+	 * the given level kept as its fallback.
+	 */
+	public void addPC(String name, int level, String model)
+	{
+		addPC(name, level, model, null);
+	}
+
+	/**
+	 * Queues a computer player. When model is not null the bot is driven by a
+	 * language model through Pollinations, playing the given personality, with
+	 * the classic evolutionary AI of the given level kept as its fallback.
+	 */
+	public void addPC(String name, int level, String model, BotPersonality personality)
+	{
 		if(players.size() < Constants.MAX_PLAYERS)
 		{
-			nextPCs.add(new Integer(level));
-			
+			nextPCs.add(new PCSpec(level, model, personality));
+
 			addPlayer(name);
 		}
 	}
@@ -661,8 +697,16 @@ public class GameData implements Runnable
 		
 		if(local && !nextPCs.isEmpty())
 		{
-			int level = nextPCs.poll().intValue();			
-			player = new ComputerPlayer(name, playerID, team, local, numSoldiers, ready, level, graphwar);
+			PCSpec spec = nextPCs.poll();
+
+			if(spec.model != null)
+			{
+				player = new PollinationsPlayer(name, playerID, team, local, numSoldiers, ready, spec.level, spec.model, spec.personality, graphwar);
+			}
+			else
+			{
+				player = new ComputerPlayer(name, playerID, team, local, numSoldiers, ready, spec.level, graphwar);
+			}
 		}
 		else
 		{
