@@ -72,7 +72,10 @@ public class PollinationsClient
 
 		this.endpoint = firstNonEmpty(props.getProperty("endpoint"), DEFAULT_ENDPOINT);
 		this.apiKey = resolveApiKey(props);
-		this.referrer = firstNonEmpty(props.getProperty("referrer"), "graphwar");
+		// Left null on purpose. Sending an app referrer gets the request
+		// attributed to that app's account, and an unrecognised one lands on a
+		// zero budget key, which the API answers with 402.
+		this.referrer = props.getProperty("referrer");
 
 		String chosen = firstNonEmpty(model, props.getProperty("model"));
 		this.model = firstNonEmpty(chosen, DEFAULT_MODEL);
@@ -95,10 +98,67 @@ public class PollinationsClient
 	 */
 	public String chat(String systemPrompt, String userPrompt, double temperature, int timeoutMs) throws IOException
 	{
+		IOException last = null;
+
+		// The free tier fails intermittently with 402 and 429, so a couple of
+		// quick retries turn a lost turn into a slightly slower one.
+		for(int attempt = 0; attempt < 3; attempt++)
+		{
+			if(attempt > 0)
+			{
+				try
+				{
+					Thread.sleep(1200L * attempt);
+				}
+				catch(InterruptedException e)
+				{
+					Thread.currentThread().interrupt();
+					break;
+				}
+			}
+
+			try
+			{
+				return send(systemPrompt, userPrompt, temperature, timeoutMs);
+			}
+			catch(IOException e)
+			{
+				last = e;
+
+				if(!isWorthRetrying(e))
+				{
+					throw e;
+				}
+			}
+		}
+
+		throw last != null ? last : new IOException("pollinations request failed");
+	}
+
+	private static boolean isWorthRetrying(IOException e)
+	{
+		String message = e.getMessage();
+
+		if(message == null)
+		{
+			return true;
+		}
+
+		return message.indexOf("http 402") >= 0 || message.indexOf("http 429") >= 0
+				|| message.indexOf("http 5") >= 0 || message.indexOf("timed out") >= 0;
+	}
+
+	private String send(String systemPrompt, String userPrompt, double temperature, int timeoutMs) throws IOException
+	{
 		StringBuilder body = new StringBuilder();
 		body.append("{\"model\":").append(Json.quote(model));
 		body.append(",\"temperature\":").append(temperature);
-		body.append(",\"referrer\":").append(Json.quote(referrer));
+
+		if(referrer != null && referrer.trim().length() > 0)
+		{
+			body.append(",\"referrer\":").append(Json.quote(referrer.trim()));
+		}
+
 		body.append(",\"messages\":[");
 		body.append("{\"role\":\"system\",\"content\":").append(Json.quote(systemPrompt)).append("},");
 		body.append("{\"role\":\"user\",\"content\":").append(Json.quote(userPrompt)).append("}");

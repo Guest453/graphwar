@@ -97,6 +97,66 @@ The available commands are:
 
 Just type them on the game chat to use them.
 
+## AI Bots (Pollinations)
+
+This fork can fill the seats with bots that ask a language model what to shoot,
+served through [Pollinations](https://pollinations.ai). Add one the same way you
+add any computer player, but type `ai` in the **level** field instead of a number.
+
+The first time you do this the game asks for an API key. Leave it empty to play
+on the free anonymous tier, which works but is slower and sometimes refuses the
+request. The answer is remembered in `~/.graphwar/pollinations.properties`, which
+is written owner-only because it holds a secret. A key can also come from the
+`POLLINATIONS_API_KEY` environment variable.
+
+### Personalities
+
+The level field takes extra parts after `ai:`, in any order. A known name picks
+the character, a number sets the level of the classic AI that covers for the bot,
+anything else is treated as a model name, and `key` reopens the key dialog:
+
+* `ai` - a plain soldier on the default model
+* `ai:peace` - the pacifist
+* `ai:trickshot:openai` - the showman, on a named model
+* `ai:sniper:80` - the marksman, with a level 80 fallback
+* `ai:key` - add a bot and change the stored API key
+
+The characters are:
+
+* **soldier** - plays it straight: hit an enemy, spare your own team.
+* **sniper** - the same goal with more patience, more retries and less imagination.
+* **peace** - refuses to hurt anyone and misses on purpose to prove it, firing
+  dramatic arcs that sail past everybody. It will not let the old killer AI take
+  its turn either. When the last of its team dies it stops being polite and
+  plays to kill.
+* **trickshot** - will not win boringly. The shot has to hit *and* arrive the
+  hard way, weaving or looping or squeezing past the rocks, or it is thrown away
+  and asked again.
+* **chaos** - fires the strangest legal function it can invent and finds out.
+* **berserker** - wants the kill enough to accept a bit of friendly fire.
+
+### How a bot takes its turn
+
+The model never fires directly. Every function it suggests is fired first inside
+`ShotSimulator`, which runs it through the game's own integrator against the real
+terrain and soldiers, and reports what it hit, how close it passed, how wavy the
+path was and whether it grazed the rocks. The personality then judges that
+result. If it is refused, the model is told exactly what went wrong ("the shot
+passed 4.2 units above the enemy at x = 14") and asked again.
+
+That is why the characters are real rather than prompt-deep: the pacifist checks
+that it genuinely missed, and the trickshot artist genuinely discards a hit that
+was too plain. If the model cannot be reached at all, the original genetic
+algorithm plays the turn, except for the personalities that refuse it.
+
+### Checking your setup
+
+    java -cp graphwar.jar Graphwar.PollinationsTest [model] [rounds] [personality]
+
+It sends a sample battlefield to the model and runs the answer through the same
+extraction and the same parser the bot uses, so a green run means a bot with this
+configuration can actually shoot.
+
 ## Running The Game
 
 Compile the game using the make command (or on your favorite IDE).

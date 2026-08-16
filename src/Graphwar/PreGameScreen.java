@@ -571,33 +571,63 @@ public class PreGameScreen extends JPanel implements ActionListener
 							// over when the model cannot be reached.
 							if(levelText.equalsIgnoreCase("ai") || levelText.toLowerCase().startsWith("ai:"))
 							{
-								String model;
+								String model = null;
+								BotPersonality bot = null;
+								boolean askForKey = false;
+
 								level = Constants.COMPUTER_LEVEL_MEAN_VALUE;
 
+								// Everything after "ai:" is recognised by what it looks like, so
+								// the parts can be given in any order: ai:peace, ai:trickshot:80,
+								// ai:openai:sniper. "key" reopens the API key dialog.
 								String[] parts = levelText.split(":");
 
-								if(parts.length > 1 && parts[1].trim().length() > 0)
+								for(int i=1; i<parts.length; i++)
 								{
-									model = parts[1].trim();
+									String token = parts[i].trim();
+
+									if(token.length() == 0)
+									{
+										continue;
+									}
+
+									if(token.equalsIgnoreCase("key"))
+									{
+										askForKey = true;
+										continue;
+									}
+
+									BotPersonality named = BotPersonality.forName(token);
+
+									if(named != null)
+									{
+										bot = named;
+										continue;
+									}
+
+									try
+									{
+										level = Integer.parseInt(token);
+									}
+									catch(NumberFormatException e)
+									{
+										model = token;
+									}
 								}
-								else
+
+								if(model == null)
 								{
 									model = PollinationsClient.DEFAULT_MODEL;
 								}
 
-								if(parts.length > 2)
+								if(bot == null)
 								{
-									try
-									{
-										level = Integer.parseInt(parts[2].trim());
-									}
-									catch(NumberFormatException e)
-									{
-										// keep the default fallback level
-									}
+									bot = BotPersonality.SOLDIER;
 								}
 
-								graphwar.getGameData().addPC(name, level, model);
+								PollinationsKeyDialog.promptIfNeeded(this, askForKey);
+
+								graphwar.getGameData().addPC(name, level, model, bot);
 								this.showAddPC(false);
 								this.repaint();
 							}
