@@ -239,7 +239,7 @@ public class PollinationsPlayer extends ComputerPlayer
 
 			if(personality.accepts(result, context))
 			{
-				return best.function.equals(function) ? best : new Candidate(function, angle, result, score);
+				return new Candidate(function, angle, result, score);
 			}
 
 			history.append("\n\nYou already tried \"").append(function).append("\". ");
@@ -305,10 +305,16 @@ public class PollinationsPlayer extends ComputerPlayer
 
 		if(context != null && !personality.allowsClassicFallback(context))
 		{
-			if(fireFallbackFunction(context))
+			// This character refuses to let the evolutionary AI play for it,
+			// and the evolutionary AI plays to kill. If its own repertoire has
+			// nothing either, it would rather lose the turn than break
+			// character, so this is where the turn ends.
+			if(!fireFallbackFunction(context))
 			{
-				return;
+				System.err.println("[pollinations] " + getName() + " holds its fire rather than play to kill");
 			}
+
+			return;
 		}
 
 		super.thinkFunction();
