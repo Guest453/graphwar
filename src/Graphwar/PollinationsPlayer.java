@@ -37,10 +37,10 @@ import GraphServer.Constants;
 public class PollinationsPlayer extends ComputerPlayer
 {
 	/** Left after the requests so a failed turn still has time for the fallback. */
-	private static final int TIME_RESERVED_FOR_FALLBACK = 12000;
+	private static final int TIME_RESERVED_FOR_FALLBACK = 15000;
 
 	/** How long a single model call may take. */
-	private static final int REQUEST_TIMEOUT = 20000;
+	private static final int REQUEST_TIMEOUT = 12000;
 
 	private static final int MAP_COLUMNS = 51;
 	private static final int MAP_ROWS = 21;
@@ -56,6 +56,9 @@ public class PollinationsPlayer extends ComputerPlayer
 
 	/** The pacifist only says this once. */
 	private boolean announcedBerserk;
+
+	/** Complain about a broken setup once, not every turn. */
+	private boolean warnedAboutFailure;
 
 	/** A candidate shot and what it did in the simulation. */
 	private static class Candidate
@@ -84,6 +87,7 @@ public class PollinationsPlayer extends ComputerPlayer
 		this.thinking = false;
 		this.cancelled = false;
 		this.announcedBerserk = false;
+		this.warnedAboutFailure = false;
 	}
 
 	public String getModel()
@@ -101,7 +105,7 @@ public class PollinationsPlayer extends ComputerPlayer
 		// Unlike the evolutionary bot there is nothing to gain from thinking
 		// ahead on someone else's turn, and every call costs a request, so we
 		// only reach for the model when the turn is actually ours.
-		if(graphwar.getGameData().getCurrentTurnPlayer() != this)
+		if(!isMyTurn())
 		{
 			return;
 		}
@@ -124,6 +128,20 @@ public class PollinationsPlayer extends ComputerPlayer
 
 		thread.setDaemon(true);
 		thread.start();
+	}
+
+	/** True only when this player is the one whose turn is being played. */
+	private boolean isMyTurn()
+	{
+		try
+		{
+			return graphwar.getGameData().getCurrentTurnPlayer() == this;
+		}
+		catch(Exception e)
+		{
+			// Between turns the index is -1 and there is nothing to compare to.
+			return false;
+		}
 	}
 
 	public void stopThinkFunction()
@@ -153,7 +171,7 @@ public class PollinationsPlayer extends ComputerPlayer
 
 			Candidate chosen = askModel(gameMode, shooter, context);
 
-			if(cancelled || graphwar.getGameData().getCurrentTurnPlayer() != this)
+			if(cancelled || !isMyTurn())
 			{
 				thinking = false;
 				return;
@@ -306,6 +324,22 @@ public class PollinationsPlayer extends ComputerPlayer
 		}
 
 		System.err.println("[pollinations] " + getName() + " could not use the model: " + reason);
+
+		// Silent bots look broken. Say it once, in the chat, so it is obvious
+		// that the AI is not playing and why.
+		if(!warnedAboutFailure)
+		{
+			warnedAboutFailure = true;
+
+			if(reason != null && reason.indexOf("free anonymous tier") >= 0)
+			{
+				say("(no Pollinations API key, so I am playing as the classic AI)");
+			}
+			else
+			{
+				say("(the AI model could not be reached, so I am playing as the classic AI)");
+			}
+		}
 
 		if(context != null && !personality.allowsClassicFallback(context))
 		{

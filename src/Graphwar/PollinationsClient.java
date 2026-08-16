@@ -143,7 +143,7 @@ public class PollinationsClient
 		throw last != null ? last : new IOException("pollinations request failed");
 	}
 
-	private static boolean isWorthRetrying(IOException e)
+	private boolean isWorthRetrying(IOException e)
 	{
 		String message = e.getMessage();
 
@@ -152,8 +152,87 @@ public class PollinationsClient
 			return true;
 		}
 
+		// Without a key a refusal will be refused again, and retrying it costs
+		// the bot its whole turn for nothing.
+		if(!hasApiKey() && message.indexOf("free anonymous tier") >= 0)
+		{
+			return false;
+		}
+
 		return message.indexOf("http 402") >= 0 || message.indexOf("http 429") >= 0
 				|| message.indexOf("http 5") >= 0 || message.indexOf("timed out") >= 0;
+	}
+
+	/**
+	 * The models the service currently offers, best effort. Returns an empty
+	 * list rather than throwing, because this only ever fills in a menu.
+	 */
+	public static java.util.List<String> listModels()
+	{
+		java.util.List<String> models = new ArrayList<String>();
+
+		try
+		{
+			String base = DEFAULT_ENDPOINT;
+			int slash = base.lastIndexOf('/');
+
+			if(slash > 0)
+			{
+				base = base.substring(0, slash);
+			}
+
+			HttpURLConnection connection = (HttpURLConnection) new URL(base + "/models").openConnection();
+			connection.setConnectTimeout(4000);
+			connection.setReadTimeout(4000);
+			connection.setRequestProperty("Accept", "application/json");
+			connection.setRequestProperty("User-Agent", "Graphwar-Pollinations/1.0");
+
+			String response = readAll(connection.getInputStream());
+			Object parsed = Json.parse(response);
+
+			if(parsed instanceof List)
+			{
+				List<?> entries = (List<?>) parsed;
+
+				for(int i = 0; i < entries.size(); i++)
+				{
+					Object entry = entries.get(i);
+
+					if(!(entry instanceof Map))
+					{
+						continue;
+					}
+
+					Object name = ((Map<?, ?>) entry).get("name");
+
+					if(name instanceof String && !models.contains(name))
+					{
+						models.add((String) name);
+					}
+
+					Object aliases = ((Map<?, ?>) entry).get("aliases");
+
+					if(aliases instanceof List)
+					{
+						List<?> list = (List<?>) aliases;
+
+						for(int j = 0; j < list.size(); j++)
+						{
+							if(list.get(j) instanceof String && !models.contains(list.get(j)))
+							{
+								models.add((String) list.get(j));
+							}
+						}
+					}
+				}
+			}
+		}
+		catch(Exception e)
+		{
+			// The menu falls back to its own list.
+		}
+
+		return models;
 	}
 
 	private String send(String systemPrompt, String userPrompt, double temperature, int timeoutMs) throws IOException

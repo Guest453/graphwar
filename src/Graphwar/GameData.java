@@ -699,11 +699,24 @@ public class GameData implements Runnable
 		{
 			PCSpec spec = nextPCs.poll();
 
+			player = null;
+
 			if(spec.model != null)
 			{
-				player = new PollinationsPlayer(name, playerID, team, local, numSoldiers, ready, spec.level, spec.model, spec.personality, graphwar);
+				// An AI bot that cannot be built must not cost us the room, so
+				// it quietly becomes an ordinary computer player instead.
+				try
+				{
+					player = new PollinationsPlayer(name, playerID, team, local, numSoldiers, ready, spec.level, spec.model, spec.personality, graphwar);
+				}
+				catch(Throwable t)
+				{
+					System.err.println("[pollinations] could not create the AI bot, using the classic AI instead:");
+					t.printStackTrace();
+				}
 			}
-			else
+
+			if(player == null)
 			{
 				player = new ComputerPlayer(name, playerID, team, local, numSoldiers, ready, spec.level, graphwar);
 			}

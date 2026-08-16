@@ -630,11 +630,21 @@ public class PreGameScreen extends JPanel implements ActionListener
 									bot = BotPersonality.SOLDIER;
 								}
 
-								PollinationsKeyDialog.promptIfNeeded(this, askForKey);
+								if(askForKey)
+								{
+									PollinationsKeyDialog.promptIfNeeded(this, true);
+								}
 
-								graphwar.getGameData().addPC(name, level, model, bot);
-								this.showAddPC(false);
-								this.repaint();
+								// The typed tokens preselect the menu rather than replacing it,
+								// so the characters can be found without knowing them.
+								BotSetupDialog.Setup setup = BotSetupDialog.show(this, bot, model, level);
+
+								if(setup != null)
+								{
+									graphwar.getGameData().addPC(name, setup.level, setup.model, setup.personality);
+									this.showAddPC(false);
+									this.repaint();
+								}
 							}
 							else if(this.levelFieldAddPC.getText().compareToIgnoreCase("Over 9000") == 0)
 							{
