@@ -40,7 +40,7 @@ public class PollinationsPlayer extends ComputerPlayer
 	private static final int TIME_RESERVED_FOR_FALLBACK = 15000;
 
 	/** How long a single model call may take. */
-	private static final int REQUEST_TIMEOUT = 12000;
+	private static final int REQUEST_TIMEOUT = 25000;
 
 	private static final int MAP_COLUMNS = 51;
 	private static final int MAP_ROWS = 21;

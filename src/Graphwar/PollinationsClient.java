@@ -54,8 +54,10 @@ import java.util.concurrent.Semaphore;
  */
 public class PollinationsClient
 {
-	public static final String DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
-	public static final String DEFAULT_MODEL = "openai";
+	public static final String DEFAULT_ENDPOINT = "https://gen.pollinations.ai/v1/chat/completions";
+	public static final String DEFAULT_MODEL = "gemma";
+
+	public static final String MODELS_URL = "https://gen.pollinations.ai/models";
 
 	private static final String CONFIG_DIR = ".graphwar";
 	private static final String CONFIG_FILE = "pollinations.properties";
@@ -154,7 +156,7 @@ public class PollinationsClient
 
 		// Without a key a refusal will be refused again, and retrying it costs
 		// the bot its whole turn for nothing.
-		if(!hasApiKey() && message.indexOf("free anonymous tier") >= 0)
+		if(message.indexOf("needs an API key") >= 0)
 		{
 			return false;
 		}
@@ -173,58 +175,57 @@ public class PollinationsClient
 
 		try
 		{
-			String base = DEFAULT_ENDPOINT;
-			int slash = base.lastIndexOf('/');
-
-			if(slash > 0)
-			{
-				base = base.substring(0, slash);
-			}
-
-			HttpURLConnection connection = (HttpURLConnection) new URL(base + "/models").openConnection();
-			connection.setConnectTimeout(4000);
-			connection.setReadTimeout(4000);
+			HttpURLConnection connection = (HttpURLConnection) new URL(MODELS_URL).openConnection();
+			connection.setConnectTimeout(5000);
+			connection.setReadTimeout(5000);
 			connection.setRequestProperty("Accept", "application/json");
 			connection.setRequestProperty("User-Agent", "Graphwar-Pollinations/1.0");
 
-			String response = readAll(connection.getInputStream());
-			Object parsed = Json.parse(response);
+			Object parsed = Json.parse(readAll(connection.getInputStream()));
 
-			if(parsed instanceof List)
+			if(!(parsed instanceof List))
 			{
-				List<?> entries = (List<?>) parsed;
+				return models;
+			}
 
-				for(int i = 0; i < entries.size(); i++)
+			List<?> entries = (List<?>) parsed;
+
+			for(int i = 0; i < entries.size(); i++)
+			{
+				if(!(entries.get(i) instanceof Map))
 				{
-					Object entry = entries.get(i);
-
-					if(!(entry instanceof Map))
-					{
-						continue;
-					}
-
-					Object name = ((Map<?, ?>) entry).get("name");
-
-					if(name instanceof String && !models.contains(name))
-					{
-						models.add((String) name);
-					}
-
-					Object aliases = ((Map<?, ?>) entry).get("aliases");
-
-					if(aliases instanceof List)
-					{
-						List<?> list = (List<?>) aliases;
-
-						for(int j = 0; j < list.size(); j++)
-						{
-							if(list.get(j) instanceof String && !models.contains(list.get(j)))
-							{
-								models.add((String) list.get(j));
-							}
-						}
-					}
+					continue;
 				}
+
+				Map<?, ?> entry = (Map<?, ?>) entries.get(i);
+
+				if(!"text".equals(entry.get("category")))
+				{
+					continue;
+				}
+
+				Object name = entry.get("name");
+
+				if(!(name instanceof String))
+				{
+					continue;
+				}
+
+				StringBuilder label = new StringBuilder((String) name);
+
+				Object title = entry.get("title");
+
+				if(title instanceof String)
+				{
+					label.append("  -  ").append(title);
+				}
+
+				if(Boolean.TRUE.equals(entry.get("paid_only")))
+				{
+					label.append(" (paid)");
+				}
+
+				models.add(label.toString());
 			}
 		}
 		catch(Exception e)
@@ -233,6 +234,20 @@ public class PollinationsClient
 		}
 
 		return models;
+	}
+
+	/** Turns a menu label back into the model name the API expects. */
+	public static String modelFromLabel(String label)
+	{
+		if(label == null)
+		{
+			return DEFAULT_MODEL;
+		}
+
+		int dash = label.indexOf("  -  ");
+		String name = dash > 0 ? label.substring(0, dash) : label;
+
+		return name.trim();
 	}
 
 	private String send(String systemPrompt, String userPrompt, double temperature, int timeoutMs) throws IOException
@@ -258,18 +273,7 @@ public class PollinationsClient
 	{
 		StringBuilder body = new StringBuilder();
 		body.append("{\"model\":").append(Json.quote(model));
-
-		// The free anonymous tier only serves the plainest possible request.
-		// Asking for a temperature, or using a separate system role, is treated
-		// as a paid feature and comes back as 402 with no key to bill. With a
-		// key we send the real thing; without one we fold the character and the
-		// rules into the single user message instead of losing them.
-		boolean full = hasApiKey();
-
-		if(full)
-		{
-			body.append(",\"temperature\":").append(temperature);
-		}
+		body.append(",\"temperature\":").append(temperature);
 
 		if(referrer != null && referrer.trim().length() > 0)
 		{
@@ -277,17 +281,8 @@ public class PollinationsClient
 		}
 
 		body.append(",\"messages\":[");
-
-		if(full)
-		{
-			body.append("{\"role\":\"system\",\"content\":").append(Json.quote(systemPrompt)).append("},");
-			body.append("{\"role\":\"user\",\"content\":").append(Json.quote(userPrompt)).append("}");
-		}
-		else
-		{
-			body.append("{\"role\":\"user\",\"content\":").append(Json.quote(systemPrompt + "\n\n" + userPrompt)).append("}");
-		}
-
+		body.append("{\"role\":\"system\",\"content\":").append(Json.quote(systemPrompt)).append("},");
+		body.append("{\"role\":\"user\",\"content\":").append(Json.quote(userPrompt)).append("}");
 		body.append("]}");
 
 		byte[] payload = body.toString().getBytes("UTF-8");
@@ -322,11 +317,11 @@ public class PollinationsClient
 
 		if(status < 200 || status >= 300)
 		{
-			if(status == 402 && !hasApiKey())
+			if(status == 401 || status == 403 || (status == 402 && !hasApiKey()))
 			{
-				throw new IOException("pollinations refused this request on the free anonymous tier, which only "
-						+ "serves very small prompts. Set an API key to play with AI bots: add one in the game, "
-						+ "put api_key in " + getConfigFile() + ", or set POLLINATIONS_API_KEY.");
+				throw new IOException("pollinations needs an API key for this request. Get one at "
+						+ "https://enter.pollinations.ai and paste it into the AI bot dialog, or put api_key in "
+						+ getConfigFile() + ", or set POLLINATIONS_API_KEY.");
 			}
 
 			throw new IOException("pollinations http " + status + ": " + trim(response, 200));

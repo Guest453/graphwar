@@ -109,16 +109,15 @@ request. The answer is remembered in `~/.graphwar/pollinations.properties`, whic
 is written owner-only because it holds a secret. A key can also come from the
 `POLLINATIONS_API_KEY` environment variable.
 
-In practice a key is required. Measured against the live API, the anonymous
-tier only serves very small prompts and refuses anything the size of a real
-Graphwar position with 402 Payment Required, and it accepts one request per IP
-at a time. Without a key the client already does what it can: it drops the
-temperature and the separate system role, which are billed as paid features,
-cuts the rules and the battlefield down to a compact form, and queues requests
-so several bots cannot starve each other. That is still refused often enough
-that bots will spend their turns on the fallback AI. With a key they get the
-full prompt, the terrain map and the temperature that gives chaos and trickshot
-their spread.
+The bots talk to the current Pollinations API at
+`https://gen.pollinations.ai/v1/chat/completions`, which needs an API key. Get
+one at https://enter.pollinations.ai and paste it into the AI bot dialog once.
+The older `text.pollinations.ai` endpoint is deprecated and only ever served one
+small model, which is not enough to play with.
+
+The default model is **gemma**. Every text model the service offers is listed in
+the dialog's dropdown, fetched live, and the box is editable so an unlisted name
+still works.
 
 ### Personalities
 

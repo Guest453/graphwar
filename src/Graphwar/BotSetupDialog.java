@@ -61,7 +61,8 @@ public class BotSetupDialog
 
 	/** Used when the live model list cannot be fetched. */
 	private static final String[] FALLBACK_MODELS = {
-			"openai", "openai-fast", "openai-large", "mistral", "llama", "deepseek", "qwen-coder" };
+			"gemma", "gemma-4-31b", "Catniti/gemma-4-31b", "openai", "openai-large",
+			"claude-large", "gemini", "grok-large", "deepseek", "llama", "mistral" };
 
 	private static final String[] DESCRIPTIONS = {
 			"plays it straight: hit an enemy, spare your own team",
@@ -113,7 +114,17 @@ public class BotSetupDialog
 			modelBox.addItem(available.get(i));
 		}
 
-		modelBox.setSelectedItem(model != null ? model : PollinationsClient.DEFAULT_MODEL);
+		String wanted = model != null ? model : PollinationsClient.DEFAULT_MODEL;
+		modelBox.setSelectedItem(wanted);
+
+		for(int i = 0; i < available.size(); i++)
+		{
+			if(PollinationsClient.modelFromLabel(available.get(i)).equals(wanted))
+			{
+				modelBox.setSelectedIndex(i);
+				break;
+			}
+		}
 		JTextField levelField = new JTextField(String.valueOf(level), 6);
 		JPasswordField keyField = new JPasswordField(16);
 
@@ -210,7 +221,7 @@ public class BotSetupDialog
 		setup.personality = CHOICES[selected >= 0 ? selected : 0];
 
 		Object chosenModel = modelBox.getSelectedItem();
-		setup.model = chosenModel != null ? chosenModel.toString().trim() : "";
+		setup.model = chosenModel != null ? PollinationsClient.modelFromLabel(chosenModel.toString()) : "";
 
 		if(setup.model.length() == 0)
 		{
