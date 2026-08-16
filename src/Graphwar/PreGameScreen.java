@@ -195,6 +195,11 @@ public class PreGameScreen extends JPanel implements ActionListener
 			
 			showAddPC(false);
 			
+			this.levelFieldAddPC.setToolTipText("<html>A number is the classic AI's skill.<br>"
+					+ "Type <b>ai</b> for a bot that asks a language model what to shoot,<br>"
+					+ "or give it a character: <b>ai:peace</b>, <b>ai:trickshot</b>, <b>ai:sniper</b>,<br>"
+					+ "<b>ai:chaos</b>, <b>ai:berserker</b>. Type <b>ai:key</b> to change the API key.</html>");
+
 			this.nameFieldAddPC.addActionListener(this);
 			this.levelFieldAddPC.addActionListener(this);
 			this.yesButtonAddPC.addActionListener(this);
@@ -718,7 +723,16 @@ public class PreGameScreen extends JPanel implements ActionListener
 					pcLevel = Constants.COMPUTER_LEVEL_MIN_VALUE;
 				}
 				
-				this.levelFieldAddPC.setText(pcLevel+"");
+				// Someone who has entered an API key wants the AI bots, so make
+				// them the default rather than something you have to know to type.
+				if(PollinationsClient.isApiKeyConfigured())
+				{
+					this.levelFieldAddPC.setText("ai");
+				}
+				else
+				{
+					this.levelFieldAddPC.setText(pcLevel+"");
+				}
 				
 				this.showAddPC(true);
 				this.repaint();
