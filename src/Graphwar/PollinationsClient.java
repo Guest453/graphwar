@@ -20,6 +20,7 @@ package Graphwar;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -211,6 +212,79 @@ public class PollinationsClient
 		}
 
 		return isEmpty(key) ? null : key.trim();
+	}
+
+	/** Where the key and model settings are kept between sessions. */
+	public static File getConfigFile()
+	{
+		return new File(new File(System.getProperty("user.home", "."), CONFIG_DIR), CONFIG_FILE);
+	}
+
+	/** True when a key has been configured anywhere we look for one. */
+	public static synchronized boolean isApiKeyConfigured()
+	{
+		return resolveApiKey(getConfig()) != null;
+	}
+
+	/**
+	 * True once the player has been asked for a key, whether or not they gave
+	 * one, so the game does not nag on every bot.
+	 */
+	public static synchronized boolean wasApiKeyRequested()
+	{
+		return isApiKeyConfigured() || "true".equalsIgnoreCase(getConfig().getProperty("prompted"));
+	}
+
+	/**
+	 * Stores the key for next time. An empty key just records that the question
+	 * was asked, which is how the anonymous tier is chosen deliberately.
+	 */
+	public static synchronized void saveApiKey(String key) throws IOException
+	{
+		Properties props = getConfig();
+
+		if(isEmpty(key))
+		{
+			props.remove("api_key");
+		}
+		else
+		{
+			props.setProperty("api_key", key.trim());
+		}
+
+		props.setProperty("prompted", "true");
+
+		File file = getConfigFile();
+		File directory = file.getParentFile();
+
+		if(directory != null && !directory.isDirectory() && !directory.mkdirs())
+		{
+			throw new IOException("could not create " + directory);
+		}
+
+		OutputStream out = new FileOutputStream(file);
+
+		try
+		{
+			props.store(out, "Graphwar Pollinations settings");
+		}
+		finally
+		{
+			out.close();
+		}
+
+		// An API key is a secret, so do not leave it world readable.
+		try
+		{
+			file.setReadable(false, false);
+			file.setReadable(true, true);
+			file.setWritable(false, false);
+			file.setWritable(true, true);
+		}
+		catch(SecurityException e)
+		{
+			// Best effort: some platforms will not allow this.
+		}
 	}
 
 	private static synchronized Properties getConfig()
