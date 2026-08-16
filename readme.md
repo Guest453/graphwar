@@ -109,6 +109,12 @@ request. The answer is remembered in `~/.graphwar/pollinations.properties`, whic
 is written owner-only because it holds a secret. A key can also come from the
 `POLLINATIONS_API_KEY` environment variable.
 
+Without a key the request has to stay plain: the free tier bills a separate
+system role and an explicit temperature as paid features and answers 402. The
+client detects this and folds the character and the rules into a single message
+instead, so bots still work, they just lose the temperature control that gives
+chaos and trickshot their spread. With a key they get it back.
+
 ### Personalities
 
 The level field takes extra parts after `ai:`, in any order. A known name picks

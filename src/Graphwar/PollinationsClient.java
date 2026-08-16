@@ -152,7 +152,18 @@ public class PollinationsClient
 	{
 		StringBuilder body = new StringBuilder();
 		body.append("{\"model\":").append(Json.quote(model));
-		body.append(",\"temperature\":").append(temperature);
+
+		// The free anonymous tier only serves the plainest possible request.
+		// Asking for a temperature, or using a separate system role, is treated
+		// as a paid feature and comes back as 402 with no key to bill. With a
+		// key we send the real thing; without one we fold the character and the
+		// rules into the single user message instead of losing them.
+		boolean full = hasApiKey();
+
+		if(full)
+		{
+			body.append(",\"temperature\":").append(temperature);
+		}
 
 		if(referrer != null && referrer.trim().length() > 0)
 		{
@@ -160,8 +171,17 @@ public class PollinationsClient
 		}
 
 		body.append(",\"messages\":[");
-		body.append("{\"role\":\"system\",\"content\":").append(Json.quote(systemPrompt)).append("},");
-		body.append("{\"role\":\"user\",\"content\":").append(Json.quote(userPrompt)).append("}");
+
+		if(full)
+		{
+			body.append("{\"role\":\"system\",\"content\":").append(Json.quote(systemPrompt)).append("},");
+			body.append("{\"role\":\"user\",\"content\":").append(Json.quote(userPrompt)).append("}");
+		}
+		else
+		{
+			body.append("{\"role\":\"user\",\"content\":").append(Json.quote(systemPrompt + "\n\n" + userPrompt)).append("}");
+		}
+
 		body.append("]}");
 
 		byte[] payload = body.toString().getBytes("UTF-8");
