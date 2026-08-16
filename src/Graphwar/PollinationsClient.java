@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.Semaphore;
 
 /**
  * Minimal client for the Pollinations text API, which speaks the OpenAI chat
@@ -60,6 +61,13 @@ public class PollinationsClient
 	private static final String CONFIG_FILE = "pollinations.properties";
 
 	private static Properties config = null;
+
+	/**
+	 * The free tier accepts one request per IP at a time and answers the rest
+	 * with 429, so a game with several AI bots would starve itself. Unkeyed
+	 * requests queue here instead of racing.
+	 */
+	private static final Semaphore FREE_TIER_GATE = new Semaphore(1, true);
 
 	private final String endpoint;
 	private final String model;
@@ -149,6 +157,25 @@ public class PollinationsClient
 	}
 
 	private String send(String systemPrompt, String userPrompt, double temperature, int timeoutMs) throws IOException
+	{
+		if(hasApiKey())
+		{
+			return doSend(systemPrompt, userPrompt, temperature, timeoutMs);
+		}
+
+		FREE_TIER_GATE.acquireUninterruptibly();
+
+		try
+		{
+			return doSend(systemPrompt, userPrompt, temperature, timeoutMs);
+		}
+		finally
+		{
+			FREE_TIER_GATE.release();
+		}
+	}
+
+	private String doSend(String systemPrompt, String userPrompt, double temperature, int timeoutMs) throws IOException
 	{
 		StringBuilder body = new StringBuilder();
 		body.append("{\"model\":").append(Json.quote(model));
