@@ -109,11 +109,16 @@ request. The answer is remembered in `~/.graphwar/pollinations.properties`, whic
 is written owner-only because it holds a secret. A key can also come from the
 `POLLINATIONS_API_KEY` environment variable.
 
-Without a key the request has to stay plain: the free tier bills a separate
-system role and an explicit temperature as paid features and answers 402. The
-client detects this and folds the character and the rules into a single message
-instead, so bots still work, they just lose the temperature control that gives
-chaos and trickshot their spread. With a key they get it back.
+In practice a key is required. Measured against the live API, the anonymous
+tier only serves very small prompts and refuses anything the size of a real
+Graphwar position with 402 Payment Required, and it accepts one request per IP
+at a time. Without a key the client already does what it can: it drops the
+temperature and the separate system role, which are billed as paid features,
+cuts the rules and the battlefield down to a compact form, and queues requests
+so several bots cannot starve each other. That is still refused often enough
+that bots will spend their turns on the fallback AI. With a key they get the
+full prompt, the terrain map and the temperature that gives chaos and trickshot
+their spread.
 
 ### Personalities
 
@@ -162,6 +167,11 @@ algorithm plays the turn, except for the personalities that refuse it.
 It sends a sample battlefield to the model and runs the answer through the same
 extraction and the same parser the bot uses, so a green run means a bot with this
 configuration can actually shoot.
+
+To check the parts that do not need the network, which is the answer shapes
+models really use and whether what we pull out of them survives the parser:
+
+    java -cp graphwar.jar Graphwar.PollinationsTest offline
 
 ## Running The Game
 

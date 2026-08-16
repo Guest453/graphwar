@@ -56,8 +56,18 @@ public class PollinationsTest
 			"\n" +
 			"Choose the function that hits an enemy. Answer with JSON only.";
 
+	private static final String COMPACT_STATE =
+			"You are at (-18.0, 2.0). Enemy at (14.0, -3.0): you need f(14.0)-f(-18.0) = -5.0. "
+			+ "Friendly at (-8.0, 2.0). Rock between x = 1 and x = 7 around y = -3.";
+
 	public static void main(String[] args)
 	{
+		if(args.length > 0 && args[0].equalsIgnoreCase("offline"))
+		{
+			runOffline();
+			return;
+		}
+
 		String model = args.length > 0 ? args[0] : null;
 		int rounds = 1;
 
@@ -93,7 +103,15 @@ public class PollinationsTest
 
 		System.out.println("bot:     " + personality.getId());
 
-		String systemPrompt = PollinationsPlayer.buildSystemPrompt(Constants.NORMAL_FUNC, personality, context);
+		boolean compact = !client.hasApiKey();
+
+		if(compact)
+		{
+			System.out.println("prompt:  compact (no key, so the free tier's size limit applies)");
+		}
+
+		String systemPrompt = PollinationsPlayer.buildSystemPrompt(Constants.NORMAL_FUNC, personality, context, compact);
+		String state = compact ? COMPACT_STATE : SAMPLE_STATE;
 
 		int usable = 0;
 
@@ -104,7 +122,7 @@ public class PollinationsTest
 
 			try
 			{
-				reply = client.chat(systemPrompt, SAMPLE_STATE, personality.temperature(), 30000);
+				reply = client.chat(systemPrompt, state, personality.temperature(), 30000);
 			}
 			catch(Exception e)
 			{
@@ -143,6 +161,68 @@ public class PollinationsTest
 		System.out.println(usable + "/" + rounds + " replies were usable shots");
 
 		if(usable == 0)
+		{
+			System.exit(1);
+		}
+	}
+
+	/**
+	 * Checks the parts that do not need the network: the shapes models actually
+	 * answer in, and whether what we pull out of them survives the game's parser.
+	 */
+	private static void runOffline()
+	{
+		String[][] cases = {
+				{ "{\"reasoning\": \"arc over the rock\", \"function\": \"sin(x/3)*5\"}", "sin(x/3)*5" },
+				{ "```json\n{\"function\": \"(x^2)/50\"}\n```", "(x^2)/50" },
+				{ "Here is my shot:\n{\"function\": \"ln(abs(x))*2\"}", "ln(abs(x))*2" },
+				{ "{\"function\": \"y = cos(x/4)*7\"}", "cos(x/4)*7" },
+				{ "y = sqrt(abs(x))*3.", "sqrt(abs(x))*3" },
+				{ "{\"function\": \"exp(x/8)\", \"angle\": -20}", "exp(x/8)" },
+		};
+
+		int passed = 0;
+
+		for(int i = 0; i < cases.length; i++)
+		{
+			String extracted = PollinationsPlayer.extractFunction(cases[i][0]);
+			boolean matches = cases[i][1].equals(extracted);
+			boolean parses = false;
+
+			if(extracted != null)
+			{
+				try
+				{
+					@SuppressWarnings("unused")
+					Function parsed = new Function(extracted);
+					parses = true;
+				}
+				catch(MalformedFunction e)
+				{
+					parses = false;
+				}
+			}
+
+			if(matches && parses)
+			{
+				passed++;
+			}
+
+			System.out.println((matches && parses ? "ok   " : "FAIL ") + "extracted \"" + extracted
+					+ "\", expected \"" + cases[i][1] + "\", parses: " + parses);
+		}
+
+		double angle = PollinationsPlayer.extractAngleFrom("{\"function\": \"x\", \"angle\": -20}");
+		double expected = Math.toRadians(-20);
+		boolean angleOk = Math.abs(angle - expected) < 0.0001;
+
+		System.out.println((angleOk ? "ok   " : "FAIL ") + "angle -20 degrees read as " + angle + " radians");
+
+		System.out.println();
+		System.out.println(passed + "/" + cases.length + " extraction cases passed, angle "
+				+ (angleOk ? "passed" : "failed"));
+
+		if(passed != cases.length || !angleOk)
 		{
 			System.exit(1);
 		}

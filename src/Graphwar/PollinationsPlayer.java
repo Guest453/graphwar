@@ -181,8 +181,12 @@ public class PollinationsPlayer extends ComputerPlayer
 	 */
 	private Candidate askModel(int gameMode, Soldier shooter, BotPersonality.Context context)
 	{
-		String systemPrompt = buildSystemPrompt(gameMode, personality, context);
-		String statePrompt = buildStatePrompt(gameMode, shooter, context);
+		// Without a key the free tier only serves small requests, so the rules
+		// and the battlefield are cut down to what will actually go through.
+		boolean compact = !client.hasApiKey();
+
+		String systemPrompt = buildSystemPrompt(gameMode, personality, context, compact);
+		String statePrompt = buildStatePrompt(gameMode, shooter, context, compact);
 
 		if(DEBUG)
 		{
@@ -434,6 +438,16 @@ public class PollinationsPlayer extends ComputerPlayer
 
 	static String buildSystemPrompt(int gameMode, BotPersonality personality, BotPersonality.Context context)
 	{
+		return buildSystemPrompt(gameMode, personality, context, false);
+	}
+
+	static String buildSystemPrompt(int gameMode, BotPersonality personality, BotPersonality.Context context, boolean compact)
+	{
+		if(compact)
+		{
+			return buildCompactSystemPrompt(gameMode, personality, context);
+		}
+
 		StringBuilder sb = new StringBuilder();
 
 		sb.append("You are playing Graphwar, an artillery game where shots travel along the graph of a mathematical function. ");
@@ -488,7 +502,51 @@ public class PollinationsPlayer extends ComputerPlayer
 		return sb.toString();
 	}
 
+	/** The terse rules that fit inside the free tier's budget. */
+	private static String buildCompactSystemPrompt(int gameMode, BotPersonality personality, BotPersonality.Context context)
+	{
+		StringBuilder sb = new StringBuilder();
+
+		sb.append("Graphwar: your shot follows the graph of a function. Plane is x -25..25, y -14.6..14.6. ");
+		sb.append("You are on the left at negative x, enemies on the right.\n");
+		sb.append("Syntax: only x, y, y', the operators + - * / ^, and sqrt log ln abs sin cos tan exp, ");
+		sb.append("plus numbers, e and pi. Write 2*x, never 2x. No other functions exist.\n");
+
+		switch(gameMode)
+		{
+			case Constants.FST_ODE:
+				sb.append("You write f in y' = f(x,y); the shot solves it from your position.\n");
+				break;
+			case Constants.SND_ODE:
+				sb.append("You write f in y'' = f(x,y,y'); the shot solves it from your position at your chosen angle.\n");
+				break;
+			default:
+				sb.append("The curve is shifted to pass through you, so only its shape matters: ");
+				sb.append("to hit (ex,ey) from (sx,sy) you need f(ex)-f(sx) = ey-sy.\n");
+				break;
+		}
+
+		sb.append("Scale steep functions down, like (x^2)/50, and never sqrt or log of a negative.\n");
+		sb.append(personality.promptFlavor(context)).append("\n");
+
+		if(gameMode == Constants.SND_ODE)
+		{
+			sb.append("Answer with JSON only: {\"function\": \"...\", \"angle\": -20}");
+		}
+		else
+		{
+			sb.append("Answer with JSON only: {\"function\": \"...\"}");
+		}
+
+		return sb.toString();
+	}
+
 	private String buildStatePrompt(int gameMode, Soldier shooter, BotPersonality.Context context)
+	{
+		return buildStatePrompt(gameMode, shooter, context, false);
+	}
+
+	private String buildStatePrompt(int gameMode, Soldier shooter, BotPersonality.Context context, boolean compact)
 	{
 		boolean inverted = (this.team == Constants.TEAM2);
 
@@ -547,9 +605,12 @@ public class PollinationsPlayer extends ComputerPlayer
 		sb.append("\nYOUR TEAM:\n");
 		sb.append(friendCount > 0 ? friends.toString() : "  none left alive besides you\n");
 
-		sb.append("\nTERRAIN. Each row is 1.46 units of y, each column 1 unit of x. ");
-		sb.append("'#' is rock that blocks the shot, '@' is you, 'E' an enemy, 'o' a teammate, '.' is open air.\n");
-		sb.append(buildMap(shooter, inverted));
+		if(!compact)
+		{
+			sb.append("\nTERRAIN. Each row is 1.46 units of y, each column 1 unit of x. ");
+			sb.append("'#' is rock that blocks the shot, '@' is you, 'E' an enemy, 'o' a teammate, '.' is open air.\n");
+			sb.append(buildMap(shooter, inverted));
+		}
 
 		sb.append("\nAnswer with JSON only.");
 

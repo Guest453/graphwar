@@ -243,6 +243,13 @@ public class PollinationsClient
 
 		if(status < 200 || status >= 300)
 		{
+			if(status == 402 && !hasApiKey())
+			{
+				throw new IOException("pollinations refused this request on the free anonymous tier, which only "
+						+ "serves very small prompts. Set an API key to play with AI bots: add one in the game, "
+						+ "put api_key in " + getConfigFile() + ", or set POLLINATIONS_API_KEY.");
+			}
+
 			throw new IOException("pollinations http " + status + ": " + trim(response, 200));
 		}
 
